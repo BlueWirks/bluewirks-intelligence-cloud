@@ -1,0 +1,14 @@
+{
+  "name": "@bluewirks/ingestion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Adapters + parsers + normalization for asset ingestion",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.7.0"
+  }
+}

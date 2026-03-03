@@ -1,0 +1,54 @@
+{
+  "sessionName": "Demo Session",
+  "sampleRate": 48000,
+  "bitDepth": 24,
+  "startTimecode": "01:00:00:00",
+  "frameRate": 23.976,
+  "tracks": [
+    {
+      "name": "Dialogue_01",
+      "type": "audio",
+      "plugins": ["EQ III", "Compressor"],
+      "regions": [
+        {
+          "name": "Take_01_Clean",
+          "startTime": "01:00:05:00",
+          "endTime": "01:00:15:12",
+          "notes": "Clean dialogue, actor A, interior scene"
+        },
+        {
+          "name": "Take_02_Alt",
+          "startTime": "01:00:16:00",
+          "endTime": "01:00:22:08",
+          "notes": "Alt take, slightly different delivery"
+        }
+      ]
+    },
+    {
+      "name": "SFX_BG_01",
+      "type": "audio",
+      "plugins": ["Reverb"],
+      "regions": [
+        {
+          "name": "AmbienceLoop",
+          "startTime": "01:00:00:00",
+          "endTime": "01:03:00:00",
+          "notes": "City ambience loop, moderate traffic"
+        }
+      ]
+    },
+    {
+      "name": "Music_Score",
+      "type": "audio",
+      "plugins": [],
+      "regions": [
+        {
+          "name": "Cue_01_Intro",
+          "startTime": "01:00:00:00",
+          "endTime": "01:00:30:00",
+          "notes": "Opening score, low tension build"
+        }
+      ]
+    }
+  ]
+}

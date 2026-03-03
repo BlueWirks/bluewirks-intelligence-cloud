@@ -1,0 +1,15 @@
+{
+  "name": "@bluewirks/prompt-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prompt versioning, schema validation, and generation execution",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@google-cloud/vertexai": "^1.1.0",
+    "ajv": "^8.12.0"
+  }
+}

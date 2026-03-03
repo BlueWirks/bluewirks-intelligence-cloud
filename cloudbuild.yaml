@@ -1,0 +1,58 @@
+steps:
+  # Install dependencies
+  - name: 'node:20'
+    entrypoint: 'npm'
+    args: ['ci']
+
+  # Lint
+  - name: 'node:20'
+    entrypoint: 'npm'
+    args: ['run', 'lint']
+
+  # Test
+  - name: 'node:20'
+    entrypoint: 'npm'
+    args: ['test']
+
+  # Build API container
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}'
+      - '-f'
+      - 'platform-core/api/Dockerfile'
+      - 'platform-core/api'
+
+  # Build Worker container
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/worker:${SHORT_SHA}'
+      - '-f'
+      - 'platform-core/worker/Dockerfile'
+      - 'platform-core/worker'
+
+  # Push API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}'
+
+  # Push Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/worker:${SHORT_SHA}'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: bluewirks-images
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/worker:${SHORT_SHA}'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

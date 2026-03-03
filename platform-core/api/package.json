@@ -1,0 +1,23 @@
+{
+  "name": "@bluewirks/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloud Run API — upload URL, commit, chat, health",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "firebase-admin": "^12.0.0",
+    "@google-cloud/storage": "^7.7.0",
+    "@google-cloud/pubsub": "^4.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "ts-node": "^10.9.0"
+  }
+}

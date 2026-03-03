@@ -1,0 +1,12 @@
+{
+  "name": "@bluewirks/observability",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Structured logging, trace correlation, and dashboard definitions",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {}
+}

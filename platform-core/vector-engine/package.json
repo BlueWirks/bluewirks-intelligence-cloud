@@ -1,0 +1,14 @@
+{
+  "name": "@bluewirks/vector-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vertex Vector Search client + metadata conventions",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@google-cloud/aiplatform": "^3.15.0"
+  }
+}

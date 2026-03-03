@@ -1,0 +1,36 @@
+{
+  "promptId": "rag-chat-v1",
+  "promptVersion": "1.0.0",
+  "modelId": "gemini-2.0-flash",
+  "temperature": 0.2,
+  "maxOutputTokens": 2048,
+  "systemInstruction": "You are an AI assistant for BlueWirks Intelligence Cloud. Answer questions based on the provided context. Always cite your sources. Return structured JSON.",
+  "userTemplate": "Context:\n{{context}}\n\nQuestion: {{question}}\n\nRespond in JSON matching the output schema. Include citations for every claim.",
+  "outputSchema": {
+    "type": "object",
+    "required": ["answer", "citations", "confidence"],
+    "properties": {
+      "answer": { "type": "string", "description": "The generated answer" },
+      "citations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["chunkId", "sourceFile", "score"],
+          "properties": {
+            "chunkId": { "type": "string" },
+            "sourceFile": { "type": "string" },
+            "byteRange": {
+              "type": "object",
+              "properties": {
+                "start": { "type": "number" },
+                "end": { "type": "number" }
+              }
+            },
+            "score": { "type": "number" }
+          }
+        }
+      },
+      "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+    }
+  }
+}

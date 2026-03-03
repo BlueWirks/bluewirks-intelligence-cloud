@@ -1,0 +1,55 @@
+{
+  "sceneName": "DemoScene",
+  "unityVersion": "2022.3.20f1",
+  "gameObjects": [
+    {
+      "name": "Main Camera",
+      "tag": "MainCamera",
+      "layer": "Default",
+      "components": [
+        { "type": "Camera", "properties": { "fieldOfView": 60, "nearClipPlane": 0.3, "farClipPlane": 1000 } },
+        { "type": "AudioListener", "properties": {} }
+      ],
+      "children": []
+    },
+    {
+      "name": "Directional Light",
+      "tag": "Untagged",
+      "layer": "Default",
+      "components": [
+        { "type": "Light", "properties": { "type": "Directional", "color": [1, 0.95, 0.84], "intensity": 1.0 } }
+      ],
+      "children": []
+    },
+    {
+      "name": "Environment",
+      "tag": "Untagged",
+      "layer": "Default",
+      "components": [
+        { "type": "Transform", "properties": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } }
+      ],
+      "children": [
+        {
+          "name": "Ground",
+          "tag": "Untagged",
+          "layer": "Default",
+          "components": [
+            { "type": "MeshRenderer", "properties": { "material": "GroundMat" } },
+            { "type": "BoxCollider", "properties": { "size": [100, 0.1, 100] } }
+          ],
+          "children": []
+        },
+        {
+          "name": "Building_01",
+          "tag": "Untagged",
+          "layer": "Default",
+          "components": [
+            { "type": "MeshRenderer", "properties": { "material": "BuildingMat" } },
+            { "type": "BoxCollider", "properties": { "size": [10, 20, 10] } }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

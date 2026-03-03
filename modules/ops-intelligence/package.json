@@ -1,0 +1,12 @@
+{
+  "name": "@bluewirks/ops-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ops vertical — SMB/agency ops ingest; decision recommendations",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {}
+}
