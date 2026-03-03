@@ -11,6 +11,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@bluewirks/contracts": "0.0.1",
     "express": "^4.18.0",
     "firebase-admin": "^12.0.0",
     "@google-cloud/storage": "^7.7.0",

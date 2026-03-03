@@ -4,6 +4,7 @@
   "private": true,
   "description": "Cross-industry AI-native knowledge & decision infrastructure on Google Cloud",
   "workspaces": [
+    "platform-core/contracts",
     "platform-core/api",
     "platform-core/worker",
     "platform-core/ingestion",

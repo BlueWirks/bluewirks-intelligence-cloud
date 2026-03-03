@@ -8,6 +8,7 @@ const EnvSchema = z.object({
 
   // GCP
   GCP_PROJECT: z.string().optional(),
+  GCP_REGION: z.string().optional(),
   ASSETS_BUCKET: z.string().optional(),
   INGEST_TOPIC: z.string().optional()
 });

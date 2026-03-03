@@ -31,10 +31,10 @@ variable "region" {
   default     = "us-central1"
 }
 
-variable "environment" {
-  description = "Environment name (dev, staging, prod)"
+variable "workload_identity_pool" {
+  description = "Optional workload identity pool name"
   type        = string
-  default     = "dev"
+  default     = ""
 }
 
 # --- Enable Required APIs ---
@@ -46,11 +46,8 @@ resource "google_project_service" "apis" {
     "firestore.googleapis.com",
     "storage.googleapis.com",
     "aiplatform.googleapis.com",
-    "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
-    "logging.googleapis.com",
-    "monitoring.googleapis.com",
-    "errorreporting.googleapis.com",
+    "iam.googleapis.com",
   ])
 
   service            = each.value
@@ -60,100 +57,35 @@ resource "google_project_service" "apis" {
 # --- Service Accounts ---
 
 resource "google_service_account" "api_sa" {
-  account_id   = "bluewirks-api-${var.environment}"
-  display_name = "BlueWirks API (${var.environment})"
+  account_id   = "bluewirks-api-sa"
+  display_name = "BlueWirks API SA"
 }
 
 resource "google_service_account" "worker_sa" {
-  account_id   = "bluewirks-worker-${var.environment}"
-  display_name = "BlueWirks Worker (${var.environment})"
-}
-
-resource "google_service_account" "ci_sa" {
-  account_id   = "bluewirks-ci-${var.environment}"
-  display_name = "BlueWirks CI/CD (${var.environment})"
+  account_id   = "bluewirks-worker-sa"
+  display_name = "BlueWirks Worker SA"
 }
 
 # --- IAM Bindings ---
 
-# API SA: Cloud Run Invoker, Firestore User, Storage Creator
-resource "google_project_iam_member" "api_firestore" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.api_sa.email}"
-}
-
-resource "google_project_iam_member" "api_storage" {
-  project = var.project_id
-  role    = "roles/storage.objectCreator"
-  member  = "serviceAccount:${google_service_account.api_sa.email}"
-}
-
-resource "google_project_iam_member" "api_pubsub_publisher" {
-  project = var.project_id
-  role    = "roles/pubsub.publisher"
-  member  = "serviceAccount:${google_service_account.api_sa.email}"
-}
-
-# Worker SA: Pub/Sub Subscriber, Vertex AI User, Storage Viewer
-resource "google_project_iam_member" "worker_pubsub" {
-  project = var.project_id
-  role    = "roles/pubsub.subscriber"
-  member  = "serviceAccount:${google_service_account.worker_sa.email}"
-}
-
-resource "google_project_iam_member" "worker_vertex" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${google_service_account.worker_sa.email}"
-}
-
-resource "google_project_iam_member" "worker_storage" {
-  project = var.project_id
-  role    = "roles/storage.objectViewer"
-  member  = "serviceAccount:${google_service_account.worker_sa.email}"
-}
-
-resource "google_project_iam_member" "worker_firestore" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.worker_sa.email}"
-}
-
-# CI SA: Cloud Build Editor, Artifact Registry Writer
-resource "google_project_iam_member" "ci_build" {
-  project = var.project_id
-  role    = "roles/cloudbuild.builds.editor"
-  member  = "serviceAccount:${google_service_account.ci_sa.email}"
-}
-
-resource "google_project_iam_member" "ci_artifact_registry" {
-  project = var.project_id
-  role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:${google_service_account.ci_sa.email}"
-}
-
 # --- Pub/Sub ---
 
 resource "google_pubsub_topic" "ingestion" {
-  name = "ingestion-topic-${var.environment}"
+  name = "ingest"
 }
 
 resource "google_pubsub_subscription" "ingestion_sub" {
-  name  = "ingestion-sub-${var.environment}"
+  name  = "ingest-sub"
   topic = google_pubsub_topic.ingestion.id
 
-  push_config {
-    push_endpoint = "https://placeholder-worker-url" # Updated after Cloud Run deploy
-  }
-
+  # Pull subscription first for MVP
   ack_deadline_seconds = 60
 }
 
 # --- Storage ---
 
 resource "google_storage_bucket" "assets" {
-  name     = "bluewirks-assets-${var.environment}-${var.project_id}"
+  name     = "bluewirks-assets-${var.project_id}"
   location = var.region
 
   uniform_bucket_level_access = true
@@ -168,6 +100,112 @@ resource "google_storage_bucket" "assets" {
   }
 }
 
+# --- Artifact Registry ---
+
+resource "google_artifact_registry_repository" "containers" {
+  location      = var.region
+  repository_id = "bluewirks"
+  description   = "BlueWirks container images"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.apis]
+}
+
+# --- Cloud Run services (stubs) ---
+
+resource "google_cloud_run_v2_service" "api" {
+  name     = "bluewirks-api"
+  location = var.region
+
+  template {
+    service_account = google_service_account.api_sa.email
+    containers {
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
+      env {
+        name  = "ASSETS_BUCKET"
+        value = google_storage_bucket.assets.name
+      }
+      env {
+        name  = "INGEST_TOPIC"
+        value = google_pubsub_topic.ingestion.name
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_service" "worker" {
+  name     = "bluewirks-worker"
+  location = var.region
+
+  template {
+    service_account = google_service_account.worker_sa.email
+    containers {
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
+      env {
+        name  = "ASSETS_BUCKET"
+        value = google_storage_bucket.assets.name
+      }
+      env {
+        name  = "INGEST_TOPIC"
+        value = google_pubsub_topic.ingestion.name
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "api_invoker" {
+  name     = google_cloud_run_v2_service.api.name
+  location = google_cloud_run_v2_service.api.location
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# --- Least privilege IAM for ingestion slice ---
+
+# api-sa
+resource "google_storage_bucket_iam_member" "api_storage_creator" {
+  bucket = google_storage_bucket.assets.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.api_sa.email}"
+}
+
+resource "google_pubsub_topic_iam_member" "api_pubsub_publisher" {
+  topic  = google_pubsub_topic.ingestion.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.api_sa.email}"
+}
+
+resource "google_project_iam_member" "api_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.api_sa.email}"
+}
+
+# worker-sa
+resource "google_pubsub_subscription_iam_member" "worker_pubsub_subscriber" {
+  subscription = google_pubsub_subscription.ingestion_sub.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:${google_service_account.worker_sa.email}"
+}
+
+resource "google_storage_bucket_iam_member" "worker_storage_viewer" {
+  bucket = google_storage_bucket.assets.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.worker_sa.email}"
+}
+
+resource "google_project_iam_member" "worker_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.worker_sa.email}"
+}
+
+resource "google_project_iam_member" "worker_aiplatform_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.worker_sa.email}"
+}
+
 # --- Outputs ---
 
 output "api_service_account" {
@@ -178,14 +216,26 @@ output "worker_service_account" {
   value = google_service_account.worker_sa.email
 }
 
-output "ci_service_account" {
-  value = google_service_account.ci_sa.email
-}
-
 output "asset_bucket" {
   value = google_storage_bucket.assets.name
 }
 
 output "ingestion_topic" {
-  value = google_pubsub_topic.ingestion.id
+  value = google_pubsub_topic.ingestion.name
+}
+
+output "ingestion_subscription" {
+  value = google_pubsub_subscription.ingestion_sub.name
+}
+
+output "artifact_registry_repo" {
+  value = google_artifact_registry_repository.containers.repository_id
+}
+
+output "api_url" {
+  value = google_cloud_run_v2_service.api.uri
+}
+
+output "worker_url" {
+  value = google_cloud_run_v2_service.worker.uri
 }
