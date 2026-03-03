@@ -1,38 +1,31 @@
-import { Request, Response, NextFunction } from "express";
-import { getAuth } from "firebase-admin/auth";
-import { initializeApp, getApps } from "firebase-admin/app";
+import type { Request, Response, NextFunction } from "express";
+import { env } from "../env.js";
 
-// Initialize Firebase Admin if not already initialized
-if (getApps().length === 0) {
-  initializeApp();
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        isAuthed: boolean;
+        orgId: string;
+        role: string;
+      };
+    }
+  }
 }
 
 /**
- * Verifies Firebase ID token from Authorization header.
- * Attaches userId, orgId, and role to the request.
+ * Minimal stub:
+ * - Accepts requests with or without Authorization for now.
+ * - If ORG_ID is set, you can later enforce org boundary via verified token claims.
  */
-export async function authMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  const authHeader = req.headers.authorization;
+export function auth(req: Request, _res: Response, next: NextFunction) {
+  const authz = req.header("authorization") || "";
+  req.user = {
+    // placeholder shape; replace with decoded Firebase token later
+    isAuthed: authz.startsWith("Bearer "),
+    orgId: env.ORG_ID ?? "dev-org",
+    role: "owner"
+  } as any;
 
-  if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Missing or invalid Authorization header" });
-    return;
-  }
-
-  const token = authHeader.split("Bearer ")[1];
-
-  try {
-    const decoded = await getAuth().verifyIdToken(token);
-    (req as any).userId = decoded.uid;
-    (req as any).orgId = decoded.org_id;
-    (req as any).role = decoded.role;
-    next();
-  } catch (err) {
-    console.error("Auth verification failed", err);
-    res.status(401).json({ error: "Invalid or expired token" });
-  }
+  next();
 }

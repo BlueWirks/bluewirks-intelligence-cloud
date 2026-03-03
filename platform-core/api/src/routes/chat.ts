@@ -1,35 +1,22 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
+import { z } from "zod";
 
 export const chatRouter = Router();
 
-/**
- * POST /api/chat
- * Body: { threadId?: string, message: string }
- * Returns: { threadId: string, response: object }
- *
- * TODO: Wire up RAG pipeline (Phase 2)
- */
-chatRouter.post("/", async (req: Request, res: Response) => {
-  try {
-    const { threadId, message } = req.body;
+const ChatReq = z.object({
+  threadId: z.string().optional(),
+  message: z.string().min(1)
+});
 
-    if (!message) {
-      res.status(400).json({ error: "message is required" });
-      return;
+chatRouter.post("/", async (req, res) => {
+  const body = ChatReq.parse(req.body);
+
+  // Placeholder response; swap for retrieval + Gemini later
+  res.json({
+    threadId: body.threadId ?? "thread_dev",
+    response: {
+      text: `stub: received "${body.message}"`,
+      citations: []
     }
-
-    // Placeholder — will be replaced by RAG pipeline in Phase 2
-    res.json({
-      threadId: threadId || crypto.randomUUID(),
-      response: {
-        content: "RAG chat coming in Phase 2.",
-        citations: [],
-      },
-      promptId: "rag-chat-v1",
-      promptVersion: "0.0.0",
-    });
-  } catch (err) {
-    console.error("Chat error", err);
-    res.status(500).json({ error: "Chat processing failed" });
-  }
+  });
 });
