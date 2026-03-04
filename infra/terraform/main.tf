@@ -156,7 +156,7 @@ resource "google_cloud_run_v2_service_iam_member" "api_invoker" {
   name     = google_cloud_run_v2_service.api.name
   location = google_cloud_run_v2_service.api.location
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "user:royalleewirks@mpgbwirks.net"
 }
 
 # --- Least privilege IAM for ingestion slice ---

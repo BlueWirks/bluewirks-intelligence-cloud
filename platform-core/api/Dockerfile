@@ -1,17 +1,28 @@
-FROM node:20-slim
-
+FROM node:20-slim AS builder
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm i --omit=dev
+COPY package.json package-lock.json ./
+COPY platform-core/contracts/package.json platform-core/contracts/package.json
+COPY platform-core/api/package.json platform-core/api/package.json
 
-COPY tsconfig.json ./
-COPY src ./src
+RUN npm ci
 
-RUN npm i --save-dev typescript @types/express && npx tsc -p tsconfig.json && npm prune --omit=dev
+COPY platform-core/contracts platform-core/contracts
+COPY platform-core/api platform-core/api
 
+RUN npm run build --workspace platform-core/contracts \
+ && npm run build --workspace platform-core/api
+
+RUN npm prune --omit=dev
+
+FROM node:20-slim AS runtime
+WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["node", "dist/index.js"]
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/platform-core/contracts/dist /app/platform-core/contracts/dist
+COPY --from=builder /app/platform-core/api/dist /app/platform-core/api/dist
+
+CMD ["node", "platform-core/api/dist/index.js"]
