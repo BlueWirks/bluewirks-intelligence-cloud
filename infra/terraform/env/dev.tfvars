@@ -1,3 +1,2 @@
-project_id             = "bluewirks-dev"
-region                 = "us-central1"
-workload_identity_pool = ""
+project_id = "bluewirks-intelligence-cloud"
+region     = "us-central1"

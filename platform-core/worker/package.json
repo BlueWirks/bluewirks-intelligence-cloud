@@ -2,6 +2,7 @@
   "name": "@bluewirks/worker",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Cloud Run worker — Pub/Sub ingest → parse/chunk/embed/upsert",
   "main": "dist/index.js",
   "scripts": {
