@@ -1,18 +1,17 @@
 terraform {
   required_version = ">= 1.5.0"
 
+  backend "gcs" {
+    bucket = "bluewirks-intelligence-cloud-tfstate"
+    prefix = "intelligence-cloud/dev"
+  }
+
   required_providers {
     google = {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
   }
-
-  # TODO: Configure GCS backend for shared state
-  # backend "gcs" {
-  #   bucket = "bluewirks-terraform-state"
-  #   prefix = "intelligence-cloud"
-  # }
 }
 
 provider "google" {
@@ -71,7 +70,7 @@ resource "google_service_account" "worker_sa" {
 # --- Pub/Sub ---
 
 resource "google_pubsub_topic" "ingestion" {
-  name = "ingest"
+  name = "ingest-assets"
 }
 
 resource "google_pubsub_subscription" "ingestion_sub" {
@@ -85,7 +84,7 @@ resource "google_pubsub_subscription" "ingestion_sub" {
 # --- Storage ---
 
 resource "google_storage_bucket" "assets" {
-  name     = "bluewirks-assets-${var.project_id}"
+  name     = "bluewirks-intelligence-cloud-assets"
   location = var.region
 
   uniform_bucket_level_access = true
@@ -179,6 +178,12 @@ resource "google_project_iam_member" "api_firestore_user" {
   project = var.project_id
   role    = "roles/datastore.user"
   member  = "serviceAccount:${google_service_account.api_sa.email}"
+}
+
+resource "google_service_account_iam_member" "api_sa_token_creator_self" {
+  service_account_id = google_service_account.api_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.api_sa.email}"
 }
 
 # worker-sa
