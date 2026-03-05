@@ -2,7 +2,8 @@ import express from "express";
 import { handleIngestionMessage } from "./handler.js";
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "8081", 10);
+const PORT = parseInt(process.env.PORT || "8080", 10);
+const HOST = "0.0.0.0";
 
 app.use(express.json());
 
@@ -30,8 +31,8 @@ app.post("/", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Worker listening on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Worker listening on http://${HOST}:${PORT}`);
 });
 
 export { app };
