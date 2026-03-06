@@ -48,7 +48,7 @@ steps:
 
 substitutions:
   _REGION: us-central1
-  _REPO: bluewirks-images
+  _REPO: bluewirks
 
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}'

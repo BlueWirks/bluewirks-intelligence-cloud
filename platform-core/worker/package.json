@@ -13,8 +13,11 @@
   },
   "dependencies": {
     "@bluewirks/contracts": "0.0.1",
+    "@bluewirks/ingestion": "0.1.0",
+    "@bluewirks/vector-engine": "0.1.0",
     "express": "^4.18.0",
     "firebase-admin": "^12.0.0",
+    "@google-cloud/pubsub": "^4.5.0",
     "@google-cloud/storage": "^7.7.0",
     "@google-cloud/aiplatform": "^3.15.0"
   },

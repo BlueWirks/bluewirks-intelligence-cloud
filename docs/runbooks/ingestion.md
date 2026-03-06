@@ -27,7 +27,7 @@ The ingestion pipeline processes uploaded assets through:
 
 ### Worker not processing messages
 
-**Symptoms:** Assets stuck in `pending` state in Firestore.
+**Symptoms:** Assets stuck in `QUEUED` or repeatedly cycling `PROCESSING`.
 
 **Check:**
 ```bash
@@ -45,7 +45,7 @@ gcloud pubsub subscriptions describe ingestion-sub
 
 ### Embedding failures
 
-**Symptoms:** Run status is `error`, logs show Vertex AI errors.
+**Symptoms:** Run status is `FAILED`, logs show embedding provider errors.
 
 **Check:**
 ```bash
@@ -73,3 +73,21 @@ gcloud logging read 'jsonPayload.component="embedding"' --limit=10
 - **Dashboard:** Cloud Monitoring → BlueWirks Ingestion
 - **Key metrics:** message age, processing latency, error rate
 - **Alerts:** error rate > 5% over 5 min window
+
+---
+
+## Retry and DLQ hardening
+
+- Worker retries transient failures up to `WORKER_RETRY_MAX_ATTEMPTS`.
+- Backoff base is `WORKER_RETRY_BASE_DELAY_MS`.
+- On terminal failure:
+	- asset status is marked `FAILED`
+	- retry metadata is stored
+	- DLQ publish occurs when `ENABLE_WORKER_DLQ_PUBLISH=true` and `INGEST_DLQ_TOPIC` is configured.
+
+Use internal operator endpoints to inspect final state:
+- `/v1/internal/ingestion/status`
+- `/v1/internal/trace/lookup`
+
+For retrieval-level inspection after ingestion:
+- `/v1/internal/retrieval/debug`

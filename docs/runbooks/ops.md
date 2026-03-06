@@ -2,6 +2,10 @@
 
 > General operational guide for BlueWirks Intelligence Cloud.
 
+Project and region are fixed for this release candidate:
+- Project: `bluewirks-intelligence-cloud`
+- Region: `us-central1`
+
 ---
 
 ## Service Health Checks
@@ -29,17 +33,29 @@ gcloud logging read 'resource.labels.service_name="worker"' --limit=10 --format=
 ### CI/CD Pipeline
 
 ```
-Push to main → Cloud Build trigger → Build container → Push to Artifact Registry → Cloud Deploy release
+Push to main → Cloud Build trigger → Build/test → Artifact Registry images → Cloud Run deploy
 ```
 
-### Manual Deploy (emergency)
+### Manual deploy (emergency)
+
+Required runtime env prerequisites (verify before deploy):
+
+```bash
+# API required
+test -n "$GCP_PROJECT" && test -n "$GCP_REGION" && test -n "$ORG_ID"
+
+# Worker required
+test -n "$GCP_PROJECT" && test -n "$GCP_REGION" && test -n "$ASSETS_BUCKET" && test -n "$INGEST_TOPIC"
+```
 
 ```bash
 # API
-gcloud run deploy api --image=REGION-docker.pkg.dev/PROJECT/repo/api:TAG --region=REGION
+gcloud run deploy api --image=us-central1-docker.pkg.dev/bluewirks-intelligence-cloud/bluewirks/api:v0.1.0 --region=us-central1 \
+	--set-env-vars GCP_PROJECT=bluewirks-intelligence-cloud,GCP_REGION=us-central1,ORG_ID=$ORG_ID
 
 # Worker
-gcloud run deploy worker --image=REGION-docker.pkg.dev/PROJECT/repo/worker:TAG --region=REGION
+gcloud run deploy worker --image=us-central1-docker.pkg.dev/bluewirks-intelligence-cloud/bluewirks/worker:v0.1.0 --region=us-central1 \
+	--set-env-vars GCP_PROJECT=bluewirks-intelligence-cloud,GCP_REGION=us-central1,ASSETS_BUCKET=$ASSETS_BUCKET,INGEST_TOPIC=$INGEST_TOPIC
 ```
 
 ---
@@ -61,9 +77,9 @@ gcloud pubsub subscriptions describe ingestion-sub --format='value(numUndelivere
 
 ### Force re-ingestion of an asset
 
-1. Update asset status in Firestore to `pending`
-2. Publish a new Pub/Sub message with the asset ID
-3. Monitor worker logs for processing
+1. Set `assets/{assetId}.status` to `QUEUED` or republish a commit message with same `assetId`.
+2. Publish a new ingestion message with same `orgId/assetId`.
+3. Monitor worker logs for `stage=parse/chunk/embed/index` transitions.
 
 ---
 
@@ -81,3 +97,11 @@ gcloud pubsub subscriptions describe ingestion-sub --format='value(numUndelivere
 2. Review Cloud Logging for root cause
 3. Follow relevant runbook (ingestion, chat)
 4. If unresolved, escalate to engineering lead
+
+---
+
+## Phase 4 hardening references
+
+- `docs/runbooks/phase4-production-hardening.md`
+- `docs/runbooks/env-reference.md`
+- `docs/release-readiness-checklist.md`

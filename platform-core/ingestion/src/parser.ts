@@ -2,14 +2,37 @@ import { Storage } from "@google-cloud/storage";
 import type { ParsedAsset, AssetType } from "./types.js";
 
 const storage = new Storage();
+const DEFAULT_BUCKET = process.env.ASSETS_BUCKET || process.env.ASSET_BUCKET || "bluewirks-assets";
+
+function resolveBucketAndObjectPath(inputPath: string): { bucketName: string; objectPath: string } {
+  if (inputPath.startsWith("gs://")) {
+    const trimmed = inputPath.slice("gs://".length);
+    const slashIndex = trimmed.indexOf("/");
+
+    if (slashIndex <= 0 || slashIndex === trimmed.length - 1) {
+      throw new Error(`Invalid gs uri: ${inputPath}`);
+    }
+
+    return {
+      bucketName: trimmed.slice(0, slashIndex),
+      objectPath: trimmed.slice(slashIndex + 1),
+    };
+  }
+
+  return {
+    bucketName: DEFAULT_BUCKET,
+    objectPath: inputPath,
+  };
+}
 
 /**
  * Downloads and parses an asset from GCS based on its type.
  * Each asset type has a dedicated adapter.
  */
 export async function parseAsset(objectPath: string, assetType: string): Promise<ParsedAsset> {
-  const bucket = storage.bucket(process.env.ASSET_BUCKET || "bluewirks-assets");
-  const [content] = await bucket.file(objectPath).download();
+  const { bucketName, objectPath: resolvedPath } = resolveBucketAndObjectPath(objectPath);
+  const bucket = storage.bucket(bucketName);
+  const [content] = await bucket.file(resolvedPath).download();
   const text = content.toString("utf-8");
 
   switch (assetType as AssetType) {

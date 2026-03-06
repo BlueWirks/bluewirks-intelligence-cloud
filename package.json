@@ -17,8 +17,12 @@
   ],
   "scripts": {
     "lint": "eslint . --ext .ts",
-    "test": "jest --passWithNoTests",
-    "build": "npm run build --workspaces --if-present"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests",
+    "build": "npm run build --workspaces --if-present",
+    "smoke:ingestion": "bash scripts/smoke/ingestion-smoke.sh",
+    "smoke:retrieval": "bash scripts/smoke/retrieval-smoke.sh",
+    "smoke:generation": "bash scripts/smoke/grounded-generation-smoke.sh",
+    "smoke:internal-auth": "bash scripts/smoke/internal-auth-smoke.sh"
   },
   "engines": {
     "node": ">=20.0.0"

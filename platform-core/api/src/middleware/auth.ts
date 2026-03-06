@@ -20,11 +20,13 @@ declare global {
  */
 export function auth(req: Request, _res: Response, next: NextFunction) {
   const authz = req.header("authorization") || "";
+  const role = req.header("x-bw-role") || req.header("x-role") || "viewer";
+
   req.user = {
     // placeholder shape; replace with decoded Firebase token later
     isAuthed: authz.startsWith("Bearer "),
     orgId: env.ORG_ID ?? "dev-org",
-    role: "owner"
+    role,
   } as any;
 
   next();

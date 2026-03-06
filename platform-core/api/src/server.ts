@@ -6,6 +6,8 @@ import { errorHandler, notFound } from "./middleware/error.js";
 import { healthRouter } from "./routes/health.js";
 import { assetsRouter } from "./routes/assets.js";
 import { chatRouter } from "./routes/chat.js";
+import { internalRouter } from "./routes/internal.js";
+import { env } from "./env.js";
 
 export function createServer() {
   const app = express();
@@ -21,6 +23,10 @@ export function createServer() {
   app.use("/health", healthRouter);
   app.use("/v1/assets", assetsRouter);
   app.use("/v1/chat", chatRouter);
+
+  if (env.INTERNAL_API_ENABLED) {
+    app.use("/v1/internal", internalRouter);
+  }
 
   app.use(notFound);
   app.use(errorHandler);

@@ -1,5 +1,8 @@
 import { env } from "./env.js";
 import { createServer } from "./server.js";
+import { validateApiRuntimeConfig } from "./config.js";
+
+validateApiRuntimeConfig(process.env);
 
 const app = createServer();
 
