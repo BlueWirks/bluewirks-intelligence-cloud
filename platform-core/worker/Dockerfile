@@ -26,9 +26,11 @@ ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
 
-# Copy pruned node_modules + built artifacts
+# Copy node_modules (contains workspace links)
 COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/platform-core/contracts/dist /app/platform-core/contracts/dist
-COPY --from=builder /app/platform-core/worker/dist /app/platform-core/worker/dist
+
+# IMPORTANT: copy full workspace dirs so workspace symlinks resolve at runtime
+COPY --from=builder /app/platform-core/contracts /app/platform-core/contracts
+COPY --from=builder /app/platform-core/worker /app/platform-core/worker
 
 CMD ["node", "platform-core/worker/dist/index.js"]

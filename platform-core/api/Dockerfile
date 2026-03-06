@@ -22,7 +22,7 @@ ENV PORT=8080
 EXPOSE 8080
 
 COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/platform-core/contracts/dist /app/platform-core/contracts/dist
-COPY --from=builder /app/platform-core/api/dist /app/platform-core/api/dist
+COPY --from=builder /app/platform-core/contracts /app/platform-core/contracts
+COPY --from=builder /app/platform-core/api /app/platform-core/api
 
 CMD ["node", "platform-core/api/dist/index.js"]
