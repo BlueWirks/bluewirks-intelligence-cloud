@@ -7,6 +7,7 @@ import { healthRouter } from "./routes/health.js";
 import { assetsRouter } from "./routes/assets.js";
 import { chatRouter } from "./routes/chat.js";
 import { internalRouter } from "./routes/internal.js";
+import { scaleRouter } from "./routes/scale/index.js";
 import { env } from "./env.js";
 
 export function createServer() {
@@ -26,6 +27,10 @@ export function createServer() {
 
   if (env.INTERNAL_API_ENABLED) {
     app.use("/v1/internal", internalRouter);
+  }
+
+  if (env.ENABLE_SCALE_FEATURES) {
+    app.use("/v1/scale", scaleRouter);
   }
 
   app.use(notFound);

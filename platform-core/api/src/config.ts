@@ -14,6 +14,9 @@ const RuntimeConfigSchema = z.object({
   GENERATION_MODEL: z.string().min(1).default("gemini-2.0-flash"),
   API_PROVIDER_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   API_PROVIDER_RETRY_BASE_MS: z.coerce.number().int().min(50).max(5000).default(200),
+  ENABLE_VISION_OCR: z.coerce.boolean().default(false),
+  GOOGLE_VISION_API_KEY: z.string().optional(),
+  TOOL_PERMISSION_OVERRIDES: z.string().optional(),
 }).superRefine((value, ctx) => {
   if (value.VECTOR_BACKEND === "vertex") {
     if (!value.VECTOR_SEARCH_ENDPOINT) {
@@ -30,6 +33,14 @@ const RuntimeConfigSchema = z.object({
         message: "DEPLOYED_INDEX_ID is required when VECTOR_BACKEND=vertex",
       });
     }
+  }
+
+  if (value.ENABLE_VISION_OCR && !value.GOOGLE_VISION_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GOOGLE_VISION_API_KEY"],
+      message: "GOOGLE_VISION_API_KEY is required when ENABLE_VISION_OCR=true",
+    });
   }
 });
 

@@ -20,7 +20,15 @@ const EnvSchema = z.object({
   VECTOR_SEARCH_ENDPOINT: z.string().optional(),
   DEPLOYED_INDEX_ID: z.string().optional(),
   ASSETS_BUCKET: z.string().optional(),
-  INGEST_TOPIC: z.string().optional()
+  INGEST_TOPIC: z.string().optional(),
+
+  // Scale-Next features (default off)
+  ENABLE_SCALE_FEATURES: z.coerce.boolean().default(false),
+
+  // Tooling
+  ENABLE_VISION_OCR: z.coerce.boolean().default(false),
+  GOOGLE_VISION_API_KEY: z.string().optional(),
+  TOOL_PERMISSION_OVERRIDES: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -330,6 +330,65 @@ export const ErrorCodeSchema = z.enum([
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
+export const ChatRolePresetSchema = z.enum([
+  "default",
+  "analyst",
+  "engineer",
+  "pm",
+  "red_team",
+  "executive",
+]);
+export type ChatRolePreset = z.infer<typeof ChatRolePresetSchema>;
+
+export const ToolTypeSchema = z.enum(["web_search", "image_to_text"]);
+export type ToolType = z.infer<typeof ToolTypeSchema>;
+
+export const ChatToolRequestSchema = z.object({
+  type: ToolTypeSchema,
+  enabled: z.boolean().default(true),
+  input: z.object({
+    query: z.string().min(1).optional(),
+    imageUrl: z.string().url().optional(),
+  }).default({}),
+});
+export type ChatToolRequest = z.infer<typeof ChatToolRequestSchema>;
+
+export const ChatMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "system"]),
+  content: z.string().min(1),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
+export const ChatRequestSchema = z.object({
+  threadId: z.string().optional(),
+  message: z.string().min(1),
+  rolePreset: ChatRolePresetSchema.default("default"),
+  tools: z.array(ChatToolRequestSchema).default([]),
+  messages: z.array(ChatMessageSchema).optional(),
+});
+export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+
+export const ToolInvocationSchema = z.object({
+  tool: ToolTypeSchema,
+  status: z.enum(["success", "error", "skipped"]),
+  latencyMs: z.number().int().min(0),
+  input: z.record(z.unknown()).default({}),
+  output: z.record(z.unknown()).default({}),
+  error: z.string().optional(),
+});
+export type ToolInvocation = z.infer<typeof ToolInvocationSchema>;
+
+export const ChatResponseSchema = z.object({
+  threadId: z.string().min(1),
+  response: z.object({
+    text: z.string().min(1),
+    citations: z.array(CitationSchema).default([]),
+    rolePreset: ChatRolePresetSchema,
+    toolInvocations: z.array(ToolInvocationSchema).default([]),
+  }),
+});
+export type ChatResponse = z.infer<typeof ChatResponseSchema>;
+
 export const IngestionDlqMessageSchema = z.object({
   traceId: z.string().uuid(),
   orgId: z.string().min(1),
@@ -350,3 +409,6 @@ export const COLLECTIONS = {
   assets: "assets",
   runs: "runs",
 } as const;
+
+// Scale-Next feature contracts
+export * from "./scale-next.js";
