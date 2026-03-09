@@ -1,20 +1,36 @@
 import { z } from "zod";
 
+function parseEnvBooleanValue(value: unknown): unknown {
+  if (value === undefined || typeof value === "boolean") return value;
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "") return undefined;
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+
+  return value;
+}
+
+const envBoolean = (defaultValue: boolean) =>
+  z.preprocess(parseEnvBooleanValue, z.boolean()).default(defaultValue);
+
 const RuntimeConfigSchema = z.object({
   GCP_PROJECT: z.string().min(1),
   GCP_REGION: z.string().min(1),
   ORG_ID: z.string().min(1),
-  INTERNAL_API_ENABLED: z.coerce.boolean().default(true),
+  INTERNAL_API_ENABLED: envBoolean(true),
   INTERNAL_OPERATOR_ROLES: z.string().min(1).default("owner,admin,operator"),
-  ENABLE_EMBEDDING_STUB: z.coerce.boolean().default(true),
+  ENABLE_EMBEDDING_STUB: envBoolean(true),
   VECTOR_BACKEND: z.enum(["stub", "vertex"]).default("stub"),
   VECTOR_SEARCH_ENDPOINT: z.string().optional(),
   DEPLOYED_INDEX_ID: z.string().optional(),
-  ENABLE_GROUNDED_GENERATION_STUB: z.coerce.boolean().default(true),
+  ENABLE_GROUNDED_GENERATION_STUB: envBoolean(true),
   GENERATION_MODEL: z.string().min(1).default("gemini-2.0-flash"),
   API_PROVIDER_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   API_PROVIDER_RETRY_BASE_MS: z.coerce.number().int().min(50).max(5000).default(200),
-  ENABLE_VISION_OCR: z.coerce.boolean().default(false),
+  ENABLE_VISION_OCR: envBoolean(false),
   GOOGLE_VISION_API_KEY: z.string().optional(),
   TOOL_PERMISSION_OVERRIDES: z.string().optional(),
 }).superRefine((value, ctx) => {

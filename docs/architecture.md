@@ -35,7 +35,7 @@
 - Custom claims: `org_id`, `role`
 - Middleware enforces:
   - Token validity
-  - `org_id === ORG_ID` (single-tenant initially)
+  - `org_id === ORG_ID` (single-tenant initially)  ß
   - Role-based access controls
 
 ---
