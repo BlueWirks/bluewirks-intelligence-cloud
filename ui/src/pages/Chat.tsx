@@ -69,6 +69,40 @@ interface WebResultItem {
   url: string;
 }
 
+type FindingSeverity = "error" | "warning" | "info";
+
+interface SceneFinding {
+  severity: FindingSeverity;
+  code: string;
+  message: string;
+  objectPath: string;
+}
+
+interface SceneDiffSummary {
+  previousExportedAtUtc?: string;
+  addedObjects?: number;
+  removedObjects?: number;
+  changedComponents?: number;
+  findingDelta?: number;
+}
+
+interface SceneManifestMeta {
+  sceneName?: string;
+  exportedAtUtc?: string;
+  buildTarget?: string;
+  diffSummary?: SceneDiffSummary;
+  assetId?: string;
+}
+
+type SceneFindingsSource = "none" | "backend" | "manual" | "sample";
+
+interface RecentSceneExport {
+  assetId: string;
+  sceneName: string | null;
+  exportedAtUtc: string | null;
+  createdAt: string | null;
+}
+
 type SpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -110,7 +144,45 @@ const INITIAL_MESSAGES: Message[] = [
   },
 ];
 
+const SCENE_QUICK_PROMPTS: Array<{ label: string; prompt: string }> = [
+  {
+    label: "Analyze scene manifest",
+    prompt: "Analyze the latest Unity scene manifest and summarize structure, complexity, and top risks.",
+  },
+  {
+    label: "Find missing scripts",
+    prompt: "List all GameObjects with missing scripts from the latest scene manifest, with paths and suggested fixes.",
+  },
+  {
+    label: "Collider coverage",
+    prompt: "Which rendered objects have no collider in the latest scene manifest? Group by severity.",
+  },
+  {
+    label: "What changed?",
+    prompt: "Using diffSummary, explain what changed since the previous scene export and what to validate next.",
+  },
+];
+
 const ORG_KEY = "bw_org_id";
+const SCENE_MANIFEST_STORAGE_KEY = "bw_latest_scene_manifest_json";
+
+const SAMPLE_SCENE_MANIFEST = JSON.stringify({
+  sceneName: "DemoScene",
+  exportedAtUtc: new Date().toISOString(),
+  buildTarget: "StandaloneWindows64",
+  findings: [
+    { severity: "error", code: "MISSING_SCRIPT", message: "EnemySpawner has 1 missing script reference(s).", objectPath: "World/EnemySpawner" },
+    { severity: "warning", code: "RENDERER_NO_COLLIDER", message: "Crate_17 has a Renderer but no Collider.", objectPath: "World/Props/Crate_17" },
+    { severity: "info", code: "DUPLICATE_SIBLING_NAME", message: "Duplicate sibling name 'Light' under World/Lights.", objectPath: "World/Lights/Light" },
+  ],
+  diffSummary: {
+    previousExportedAtUtc: new Date(Date.now() - 3600_000).toISOString(),
+    addedObjects: 12,
+    removedObjects: 4,
+    changedComponents: 6,
+    findingDelta: 2,
+  },
+}, null, 2);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object";
@@ -138,6 +210,28 @@ function summarizeToolInput(inv: ToolInvocation) {
 
 function invocationKey(inv: ToolInvocation) {
   return `${inv.tool}:${JSON.stringify(inv.input)}`;
+}
+
+function toFindingSeverity(value: unknown): FindingSeverity {
+  const normalized = String(value ?? "").toLowerCase();
+  if (normalized === "error") return "error";
+  if (normalized === "warning") return "warning";
+  return "info";
+}
+
+function normalizeSceneFindings(input: unknown): SceneFinding[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => {
+      if (!isRecord(item)) return null;
+      return {
+        severity: toFindingSeverity(item.severity),
+        code: typeof item.code === "string" ? item.code : "UNKNOWN",
+        message: typeof item.message === "string" ? item.message : "No message provided",
+        objectPath: typeof item.objectPath === "string" ? item.objectPath : "<unknown>",
+      };
+    })
+    .filter((item): item is SceneFinding => !!item);
 }
 
 export default function Chat() {
@@ -168,6 +262,14 @@ export default function Chat() {
   const [auditSearch, setAuditSearch] = useState("");
   const [retryPendingKeys, setRetryPendingKeys] = useState<Set<string>>(new Set());
   const [lastCanceledPrompt, setLastCanceledPrompt] = useState<string | null>(null);
+  const [sceneManifestInput, setSceneManifestInput] = useState("");
+  const [sceneFindings, setSceneFindings] = useState<SceneFinding[]>([]);
+  const [sceneMeta, setSceneMeta] = useState<SceneManifestMeta | null>(null);
+  const [sceneManifestError, setSceneManifestError] = useState<string | null>(null);
+  const [sceneLoading, setSceneLoading] = useState(false);
+  const [recentSceneExports, setRecentSceneExports] = useState<RecentSceneExport[]>([]);
+  const [selectedSceneAssetId, setSelectedSceneAssetId] = useState<string>("");
+  const [sceneSource, setSceneSource] = useState<SceneFindingsSource>("none");
 
   const endRef = useRef<HTMLDivElement>(null);
   const speechRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
@@ -282,6 +384,124 @@ export default function Chat() {
   useEffect(() => {
     void loadAudit();
   }, []);
+
+  const applySceneManifest = (raw: string, source: SceneFindingsSource = "manual") => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setSceneFindings([]);
+      setSceneMeta(null);
+      setSceneManifestError(null);
+      setSceneSource("none");
+      localStorage.removeItem(SCENE_MANIFEST_STORAGE_KEY);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (!isRecord(parsed)) {
+        throw new Error("Manifest must be a JSON object");
+      }
+
+      const findings = normalizeSceneFindings(parsed.findings);
+      const meta: SceneManifestMeta = {
+        sceneName: typeof parsed.sceneName === "string" ? parsed.sceneName : undefined,
+        exportedAtUtc: typeof parsed.exportedAtUtc === "string" ? parsed.exportedAtUtc : undefined,
+        buildTarget: typeof parsed.buildTarget === "string" ? parsed.buildTarget : undefined,
+        diffSummary: isRecord(parsed.diffSummary)
+          ? {
+              previousExportedAtUtc: typeof parsed.diffSummary.previousExportedAtUtc === "string" ? parsed.diffSummary.previousExportedAtUtc : undefined,
+              addedObjects: typeof parsed.diffSummary.addedObjects === "number" ? parsed.diffSummary.addedObjects : undefined,
+              removedObjects: typeof parsed.diffSummary.removedObjects === "number" ? parsed.diffSummary.removedObjects : undefined,
+              changedComponents: typeof parsed.diffSummary.changedComponents === "number" ? parsed.diffSummary.changedComponents : undefined,
+              findingDelta: typeof parsed.diffSummary.findingDelta === "number" ? parsed.diffSummary.findingDelta : undefined,
+            }
+          : undefined,
+      };
+
+      setSceneFindings(findings);
+      setSceneMeta(meta);
+      setSceneManifestError(null);
+      setSceneSource(source);
+      localStorage.setItem(SCENE_MANIFEST_STORAGE_KEY, trimmed);
+    } catch (error) {
+      setSceneManifestError(error instanceof Error ? error.message : "Invalid scene manifest JSON");
+    }
+  };
+
+  useEffect(() => {
+    const cached = localStorage.getItem(SCENE_MANIFEST_STORAGE_KEY);
+    if (!cached) return;
+    setSceneManifestInput(cached);
+    applySceneManifest(cached, "manual");
+  }, []);
+
+  const loadLatestSceneFindings = async (assetId?: string) => {
+    setSceneLoading(true);
+    try {
+      const res = await api.get<{
+        found: boolean;
+        item: null | {
+          assetId: string;
+          sceneName: string | null;
+          exportedAtUtc: string | null;
+          buildTarget: string | null;
+          findings: unknown[];
+          diffSummary: Record<string, unknown> | null;
+        };
+        recent?: RecentSceneExport[];
+      }>(`/v1/assets/unity/latest-findings?orgId=${encodeURIComponent(orgId)}${assetId ? `&assetId=${encodeURIComponent(assetId)}` : ""}&recentLimit=5`);
+
+      setRecentSceneExports(Array.isArray(res.recent) ? res.recent : []);
+
+      if (!res.found || !res.item) {
+        if (!assetId && Array.isArray(res.recent) && res.recent[0]?.assetId) {
+          setSelectedSceneAssetId(res.recent[0].assetId);
+        }
+        return;
+      }
+
+      const findings = normalizeSceneFindings(res.item.findings);
+      const meta: SceneManifestMeta = {
+        assetId: res.item.assetId,
+        sceneName: res.item.sceneName ?? undefined,
+        exportedAtUtc: res.item.exportedAtUtc ?? undefined,
+        buildTarget: res.item.buildTarget ?? undefined,
+        diffSummary: isRecord(res.item.diffSummary)
+          ? {
+              previousExportedAtUtc: typeof res.item.diffSummary.previousExportedAtUtc === "string" ? res.item.diffSummary.previousExportedAtUtc : undefined,
+              addedObjects: typeof res.item.diffSummary.addedObjects === "number" ? res.item.diffSummary.addedObjects : undefined,
+              removedObjects: typeof res.item.diffSummary.removedObjects === "number" ? res.item.diffSummary.removedObjects : undefined,
+              changedComponents: typeof res.item.diffSummary.changedComponents === "number" ? res.item.diffSummary.changedComponents : undefined,
+              findingDelta: typeof res.item.diffSummary.findingDelta === "number" ? res.item.diffSummary.findingDelta : undefined,
+            }
+          : undefined,
+      };
+
+      setSceneFindings(findings);
+      setSceneMeta(meta);
+      setSelectedSceneAssetId(res.item.assetId);
+      setSceneManifestError(null);
+      setSceneSource("backend");
+    } catch {
+      // Graceful fallback: panel still supports manual paste/sample load.
+    } finally {
+      setSceneLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadLatestSceneFindings();
+  }, [orgId]);
+
+  const findingCounts = useMemo(() => {
+    const counts: Record<FindingSeverity, number> = { error: 0, warning: 0, info: 0 };
+    for (const finding of sceneFindings) {
+      counts[finding.severity] += 1;
+    }
+    return counts;
+  }, [sceneFindings]);
+
+  const topSceneFindings = useMemo(() => sceneFindings.slice(0, 5), [sceneFindings]);
 
   const appendLocalAudit = (invocations: ToolInvocation[]) => {
     const now = new Date().toISOString();
@@ -689,6 +909,18 @@ export default function Chat() {
               </Button>
             </Box>
           )}
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, maxWidth: 780, mx: "auto", mb: 1 }}>
+            {SCENE_QUICK_PROMPTS.map((item) => (
+              <Chip
+                key={item.label}
+                size="small"
+                variant="outlined"
+                label={item.label}
+                disabled={sending}
+                onClick={() => setInput(item.prompt)}
+              />
+            ))}
+          </Box>
           <Box sx={{ display: "flex", gap: 1, maxWidth: 780, mx: "auto" }}>
             <TextField
               fullWidth
@@ -778,6 +1010,126 @@ export default function Chat() {
             <Box sx={{ mt: 1.5 }}>
               <Typography variant="caption" color="text.secondary">Speed: {speechRate.toFixed(1)}x</Typography>
               <Slider value={speechRate} min={0.6} max={1.6} step={0.1} onChange={(_, v) => setSpeechRate(v as number)} size="small" />
+            </Box>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 0.75 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>Scene Findings Summary</Typography>
+              <Box sx={{ flex: 1 }} />
+              <IconButton size="small" onClick={() => void loadLatestSceneFindings()} disabled={sceneLoading}>
+                <RefreshIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+              Auto-loads latest Unity findings when available. You can also paste manifest JSON.
+            </Typography>
+            <TextField
+              select
+              size="small"
+              fullWidth
+              label="Recent scene exports"
+              value={selectedSceneAssetId}
+              onChange={(e) => {
+                const assetId = e.target.value;
+                setSelectedSceneAssetId(assetId);
+                void loadLatestSceneFindings(assetId || undefined);
+              }}
+              sx={{ mb: 1 }}
+            >
+              {recentSceneExports.length === 0 ? (
+                <MenuItem value="" disabled>No recent unity_scene assets</MenuItem>
+              ) : recentSceneExports.map((item) => (
+                <MenuItem key={item.assetId} value={item.assetId}>
+                  {item.sceneName || "Scene"} · {item.assetId.slice(0, 8)}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              size="small"
+              fullWidth
+              multiline
+              minRows={3}
+              maxRows={6}
+              placeholder="Paste scene manifest JSON..."
+              value={sceneManifestInput}
+              onChange={(e) => setSceneManifestInput(e.target.value)}
+              error={!!sceneManifestError}
+              helperText={sceneManifestError ?? " "}
+            />
+            <Box sx={{ display: "flex", gap: 0.75, mt: 0.5, mb: 1, flexWrap: "wrap" }}>
+              <Button size="small" variant="outlined" onClick={() => applySceneManifest(sceneManifestInput, "manual")}>Apply</Button>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => {
+                  setSceneManifestInput(SAMPLE_SCENE_MANIFEST);
+                  applySceneManifest(SAMPLE_SCENE_MANIFEST, "sample");
+                }}
+              >
+                Load sample
+              </Button>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => {
+                  setSceneManifestInput("");
+                  applySceneManifest("");
+                }}
+              >
+                Clear
+              </Button>
+            </Box>
+
+            <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mb: 1 }}>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Source ${sceneSource.toUpperCase()}`}
+                color={sceneSource === "backend" ? "success" : sceneSource === "sample" ? "info" : sceneSource === "manual" ? "warning" : "default"}
+              />
+              <Chip size="small" label={`Errors ${findingCounts.error}`} color="error" variant="outlined" />
+              <Chip size="small" label={`Warnings ${findingCounts.warning}`} color="warning" variant="outlined" />
+              <Chip size="small" label={`Info ${findingCounts.info}`} color="info" variant="outlined" />
+              <Chip size="small" label={`Total ${sceneFindings.length}`} variant="outlined" />
+            </Box>
+
+            {!!sceneMeta && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                {sceneMeta.assetId ? `asset ${sceneMeta.assetId} · ` : ""}
+                {sceneMeta.sceneName ? `${sceneMeta.sceneName}` : "Scene"}
+                {sceneMeta.buildTarget ? ` · ${sceneMeta.buildTarget}` : ""}
+                {sceneMeta.exportedAtUtc ? ` · ${new Date(sceneMeta.exportedAtUtc).toLocaleString()}` : ""}
+              </Typography>
+            )}
+
+            {!!sceneMeta?.diffSummary && (
+              <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mb: 1 }}>
+                <Chip size="small" variant="outlined" label={`+Obj ${sceneMeta.diffSummary.addedObjects ?? 0}`} />
+                <Chip size="small" variant="outlined" label={`-Obj ${sceneMeta.diffSummary.removedObjects ?? 0}`} />
+                <Chip size="small" variant="outlined" label={`ΔComp ${sceneMeta.diffSummary.changedComponents ?? 0}`} />
+                <Chip size="small" variant="outlined" label={`ΔFindings ${sceneMeta.diffSummary.findingDelta ?? 0}`} />
+              </Box>
+            )}
+
+            <Box sx={{ display: "grid", gap: 0.75 }}>
+              {topSceneFindings.length === 0 ? (
+                <Typography variant="caption" color="text.secondary">No findings loaded yet.</Typography>
+              ) : topSceneFindings.map((f, idx) => (
+                <Paper key={`${f.code}-${idx}`} variant="outlined" sx={{ p: 1 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>{f.code}</Typography>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color={f.severity === "error" ? "error" : f.severity === "warning" ? "warning" : "info"}
+                      label={f.severity}
+                    />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{f.message}</Typography>
+                  <Typography variant="caption" sx={{ fontFamily: "'Roboto Mono', monospace" }}>{f.objectPath}</Typography>
+                </Paper>
+              ))}
             </Box>
           </Paper>
 

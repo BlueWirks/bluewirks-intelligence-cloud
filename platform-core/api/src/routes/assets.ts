@@ -45,6 +45,12 @@ const CommitReq = z.object({
   traceId: z.string().uuid().optional(),
 });
 
+const LatestUnityFindingsReq = z.object({
+  orgId: z.string().min(1),
+  assetId: z.string().min(1).optional(),
+  recentLimit: z.coerce.number().int().min(1).max(20).default(5),
+});
+
 assetsRouter.post("/commit", async (req, res, next) => {
   try {
     const body = CommitReq.parse(req.body);
@@ -78,6 +84,96 @@ assetsRouter.post("/commit", async (req, res, next) => {
     });
 
     res.json({ ok: true, messageId, traceId });
+  } catch (e) {
+    next(e);
+  }
+});
+
+assetsRouter.get("/unity/latest-findings", async (req, res, next) => {
+  try {
+    const query = LatestUnityFindingsReq.parse(req.query);
+    const assetsRef = firestore
+      .collection(COLLECTIONS.orgs).doc(query.orgId)
+      .collection(COLLECTIONS.assets);
+
+    const recentSnap = await assetsRef
+      .where("assetType", "==", "unity_scene")
+      .orderBy("createdAt", "desc")
+      .limit(query.recentLimit)
+      .get();
+
+    const recent = recentSnap.docs.map((doc) => {
+      const data = doc.data() as Record<string, unknown>;
+      const metadata = (data.metadata ?? {}) as Record<string, unknown>;
+      return {
+        assetId: doc.id,
+        sceneName: typeof metadata.sceneName === "string" ? metadata.sceneName : null,
+        exportedAtUtc: typeof metadata.exportedAtUtc === "string" ? metadata.exportedAtUtc : null,
+        createdAt: typeof data.createdAt === "string" ? data.createdAt : null,
+      };
+    });
+
+    if (query.assetId) {
+      const doc = await assetsRef.doc(query.assetId).get();
+      if (!doc.exists) {
+        res.json({ found: false, item: null, recent });
+        return;
+      }
+
+      const data = doc.data() as Record<string, unknown>;
+      if (data.assetType !== "unity_scene") {
+        res.json({ found: false, item: null, recent });
+        return;
+      }
+
+      const metadata = (data.metadata ?? {}) as Record<string, unknown>;
+      const findings = Array.isArray(metadata.findings) ? metadata.findings : [];
+      const diffSummary = metadata.diffSummary && typeof metadata.diffSummary === "object"
+        ? metadata.diffSummary
+        : null;
+
+      res.json({
+        found: true,
+        item: {
+          assetId: doc.id,
+          sceneName: typeof metadata.sceneName === "string" ? metadata.sceneName : null,
+          exportedAtUtc: typeof metadata.exportedAtUtc === "string" ? metadata.exportedAtUtc : null,
+          buildTarget: typeof metadata.buildTarget === "string" ? metadata.buildTarget : null,
+          findings,
+          diffSummary,
+          createdAt: typeof data.createdAt === "string" ? data.createdAt : null,
+        },
+        recent,
+      });
+      return;
+    }
+
+    if (recentSnap.empty) {
+      res.json({ found: false, item: null, recent: [] });
+      return;
+    }
+
+    const doc = recentSnap.docs[0];
+    const data = doc.data() as Record<string, unknown>;
+    const metadata = (data.metadata ?? {}) as Record<string, unknown>;
+    const findings = Array.isArray(metadata.findings) ? metadata.findings : [];
+    const diffSummary = metadata.diffSummary && typeof metadata.diffSummary === "object"
+      ? metadata.diffSummary
+      : null;
+
+    res.json({
+      found: true,
+      item: {
+        assetId: doc.id,
+        sceneName: typeof metadata.sceneName === "string" ? metadata.sceneName : null,
+        exportedAtUtc: typeof metadata.exportedAtUtc === "string" ? metadata.exportedAtUtc : null,
+        buildTarget: typeof metadata.buildTarget === "string" ? metadata.buildTarget : null,
+        findings,
+        diffSummary,
+        createdAt: typeof data.createdAt === "string" ? data.createdAt : null,
+      },
+      recent,
+    });
   } catch (e) {
     next(e);
   }
